@@ -304,12 +304,3 @@ ggplot(aes(x = interval, y = meanSteps)) +
 
 We can see that during weekdays there are a greater number of steps from interval 550 to interval 900 aprox. and around interval 2000, but the rest of the time the number of steps are greater for the weekend days.
 
-
-
-```r
-activity_no_NA %>% group_by(day, interval) %>% summarise(meanSteps = mean(steps, na.rm = T)) %>% 
-ggplot(aes(x = interval, y = meanSteps)) +
-  geom_line(aes(color=day)) 
-```
-
-![](PA1_template_files/figure-html/unnamed-chunk-11-1.png)<!-- -->
