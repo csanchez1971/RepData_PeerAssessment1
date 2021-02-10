@@ -1,16 +1,81 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
+title: 'Reproducible Research: Peer Assessment 1'
+author: "Carlos Sanchez"
+output:
   html_document:
-    keep_md: true
+    keep_md: yes
+  pdf_document: default
 ---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Introduction
+
+It is now possible to collect a large amount of data about personal movement using activity monitoring devices such as a Fitbit, Nike Fuelband, or Jawbone Up. These type of devices are part of the “quantified self” movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. But these data remain under-utilized both because the raw data are hard to obtain and there is a lack of statistical methods and software for processing and interpreting the data.
+
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+The data for this assignment can be downloaded from the course web site:
+
+* Dataset: Activity monitoring data [52K]
+
+The variables included in this dataset are:
+
+* **steps**: Number of steps taking in a 5-minute interval (missing values are coded as `NA`)
+* **date**: The date on which the measurement was taken in YYYY-MM-DD format
+* **interval**: Identifier for the 5-minute interval in which measurement was taken
 
 
 ## Loading and preprocessing the data
 
+```{r libraries, results = 'hide', message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(imputeTS)
+```
+
+
+Once uploaded the data, we will have to convert the date variable form **character** to **date**.
+
+
+```{r}
+unzip("activity.zip")
+activity <- read.csv("activity.csv")
+activity$date <- as.Date(activity$date, "%Y-%m-%d")
+
+```
 
 
 ## What is mean total number of steps taken per day?
+
+In order to solve this question, first we will have to group the data by date and then plot the sum of steps for each day.
+
+
+```{r}
+stepsDay <- activity %>% 
+              group_by(date) %>% 
+              summarise(stepsTotal = sum(steps, na.rm = T))
+
+ggplot(stepsDay, aes(x=date, y= stepsTotal)) +
+  geom_bar(stat = 'identity', fill="darkorchid4")+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1, size = 6))
+
+```
+
+
+If now calculate for each day the mean and the median of steps and represent the result in a table:
+
+
+```{r}
+meanStepsDay <- activity %>% group_by(date) %>% summarise(average_Steps = round(mean(steps, na.rm = T), 3),
+                                                          median_Steps = median(steps, na.rm = T))
+
+kable(meanStepsDay)
+
+```
 
 
 
@@ -18,8 +83,89 @@ output:
 
 
 
+```{r}
+meanByInterval <- activity %>% group_by(interval) %>% summarise(meanSteps = mean(steps, na.rm = T))
+MaxMinuteInterval <- meanByInterval$interval[which.max(meanByInterval$meanSteps)]
+
+ggplot(meanByInterval, aes(x= interval, y = meanSteps)) +
+  geom_line() +
+  geom_vline(xintercept = MaxMinuteInterval, col = "red",)+
+    geom_text(aes(x = MaxMinuteInterval+50, y=max(meanSteps), label="interval = 835"),size=3)
+
+  
+```
+
+On average, across all the days, the 5-minute that contains the maximum number of steps is `r MaxMinuteInterval`.
+
+
 ## Imputing missing values
+
+```{r}
+count_NA <- sum(is.na(activity$steps))
+```
+
+The total number of missing values (**NA**) in the dataset  is `r count_NA`.
+
+For filling the missing values, I will impute the mean of its specific time interval, creating a new dataset `activity_no_NA`:
+
+```{r}
+activity_no_NA <- activity %>% 
+                      group_by(interval) %>% 
+                      mutate(steps=ifelse(is.na(steps), mean(steps, na.rm=TRUE), steps))
+```
+
+
+If we plot again the steps by day although now including the imputed values to NA:
+
+```{r}
+statisticsByDay <- activity_no_NA %>% 
+                      group_by(date) %>% 
+                      summarise(totalSteps = sum(steps, na.rm = T),
+                                meanSteps = round(mean(steps, na.rm = T), 3), 
+                                medianSteps = round(median(steps, na.rm = T), 3))
+
+ggplot(statisticsByDay, aes(x = date)) +
+  geom_bar(aes(y = totalSteps), stat = 'identity', fill="darkorchid4") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 6)) 
+
+
+```
+
+The new median and mean for each day will be:
+
+
+```{r}
+kable(statisticsByDay)
+```
+
+
+When comparing both tables, we see that the mean values for those days with data are exactly the same, although the days where all the values are NA,  now have been replaced by the mean of the days (`r statisticsByDay[1,3]`) and that gives a greater value.
 
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+First we create the new factor level 'day` with two levels, **weekend** and **weekday**:
+
+
+```{r}
+activity_no_NA$day <- ifelse(weekdays(activity_no_NA$date) %in% c("Saturday", "Sunday"), 
+                             "weekend", "weekday")
+
+```
+
+```{r, message=F}
+activity_no_NA %>% group_by(day, interval) %>% summarise(meanSteps = mean(steps, na.rm = T)) %>% 
+ggplot(aes(x = interval, y = meanSteps)) +
+  geom_line() +
+  facet_wrap(. ~ day, nrow = 2)
+```
+
+We can see that during weekdays there are a greater number of steps from interval 550 to interval 900 aprox. and around interval 2000, but the rest of the time the number of steps are greater for the weekend days.
+
+
+```{r, message=F}
+activity_no_NA %>% group_by(day, interval) %>% summarise(meanSteps = mean(steps, na.rm = T)) %>% 
+ggplot(aes(x = interval, y = meanSteps)) +
+  geom_line(aes(color=day)) 
+```
